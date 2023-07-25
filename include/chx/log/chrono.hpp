@@ -55,6 +55,57 @@ struct wday_mon_table_t {
     }
 };
 constexpr static wday_mon_table_t wday_mon_table{};
+
+struct hmsdm_table_t {
+    template <std::size_t N>
+    constexpr static string<N / 10 + '0', N % 10 + '0'>
+    to_string() noexcept(true) {
+        return {};
+    }
+    template <std::size_t... Is>
+    constexpr void make_h(std::integer_sequence<std::size_t, Is...>) {
+        (to_string<Is>().copy_to(table[Is]), ...);
+    }
+    template <std::size_t N> constexpr static auto make_space_pad() {
+        if constexpr (N < 10) {
+            return string<' ', N + '0'>{};
+        } else {
+            return to_string<N>();
+        }
+    }
+    template <std::size_t... Is>
+    constexpr void make_s(std::integer_sequence<std::size_t, Is...>) {
+        (to_string<Is>().copy_to(table[Is]), ...);
+    }
+
+    constexpr hmsdm_table_t() noexcept(true) {
+        make_h(std::make_integer_sequence<std::size_t, 100>{});
+        make_s(std::make_integer_sequence<std::size_t, 100>{});
+    }
+
+    char table[100][2] = {};
+    char stable[100][2] = {};
+};
+constexpr hmsdm_table_t hmsdm_table{};
+
+// https://en.wikipedia.org/wiki/ISO_week_date
+constexpr std::size_t wpy_p(int y) noexcept(true) {
+    return y + y * 4 - y / 100 + y / 400;
+}
+constexpr std::size_t wpy(int y) noexcept(true) {
+    return 52 + ((wpy_p(y) == 4 || wpy_p(y - 1) == 3) ? 1 : 0);
+}
+constexpr int wby(const std::tm& t) noexcept(true) {
+    int y = t.tm_year + 1900;
+    int w = (11 + t.tm_yday - (t.tm_wday == 0 ? 7 : t.tm_wday)) / 7;
+    if (w == 0) {
+        return y - 1;
+    } else if (w > wpy(y)) {
+        return y + 1;
+    } else {
+        return y;
+    }
+}
 }  // namespace detail::chrono
 template <typename Flags, typename Specifier>
 struct chrono_subformatter : formatter_placeholder {};
@@ -148,27 +199,21 @@ template <> struct chrono_subformatter<flags<>, specifier<'c'>> {
             detail::chrono::wday_mon_table.table[_tm.tm_wday][_tm.tm_mon], 7,
             ptr);
         *(ptr++) = ' ';
-        if (__builtin_expect(_tm.tm_mday < 10, 0)) {
-            *(ptr++) = '0';
-        }
-        ptr = std::to_chars(ptr, ptr + 2, _tm.tm_mday).ptr;
+        ptr =
+            std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_mday], 2, ptr);
         *(ptr++) = ' ';
-        if (__builtin_expect(_tm.tm_hour < 10, 0)) {
-            *(ptr++) = '0';
-        }
-        ptr = std::to_chars(ptr, ptr + 2, _tm.tm_hour).ptr;
+        ptr =
+            std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_hour], 2, ptr);
         *(ptr++) = ':';
-        if (__builtin_expect(_tm.tm_min < 10, 0)) {
-            *(ptr++) = '0';
-        }
-        ptr = std::to_chars(ptr, ptr + 2, _tm.tm_min).ptr;
+        ptr =
+            std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_min], 2, ptr);
         *(ptr++) = ':';
-        if (__builtin_expect(_tm.tm_sec < 10, 0)) {
-            *(ptr++) = '0';
-        }
-        ptr = std::to_chars(ptr, ptr + 2, _tm.tm_sec).ptr;
+        ptr =
+            std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_sec], 2, ptr);
         *(ptr++) = ' ';
-        std::to_chars(ptr, ptr + 4, _tm.tm_year + 1900);
+        int y = (_tm.tm_year + 1900) % 10000;
+        ptr = std::copy_n(detail::chrono::hmsdm_table.table[y / 100], 2, ptr);
+        ptr = std::copy_n(detail::chrono::hmsdm_table.table[y % 100], 2, ptr);
         return 24;
     }
 };
@@ -183,8 +228,189 @@ template <> struct chrono_subformatter<flags<>, specifier<'C'>> {
     constexpr static void format(RandomAccessIterator iter,
                                  const struct std::tm& _tm,
                                  std::size_t) noexcept(true) {
-        std::to_chars(detail::iter_addr(iter), detail::iter_addr(iter) + 2,
-                      _tm.tm_year / 100 + 19);
+        std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_year / 100 + 19],
+                    2, iter);
+    }
+};
+
+template <> struct chrono_subformatter<flags<>, specifier<'d'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 2; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 2;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_mday], 2, iter);
+    }
+};
+
+template <> struct chrono_subformatter<flags<>, specifier<'D'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 8; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 8;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        // mdy
+        char* ptr =
+            std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_mon + 1], 2,
+                        detail::iter_addr(iter));
+        *(ptr++) = '/';
+        ptr =
+            std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_mday], 2, ptr);
+        *(ptr++) = '/';
+        std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_year % 100], 2,
+                    ptr);
+    }
+};
+
+template <> struct chrono_subformatter<flags<>, specifier<'e'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 2; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 2;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        std::copy_n(detail::chrono::hmsdm_table.stable[_tm.tm_mday], 2, iter);
+    }
+};
+
+template <> struct chrono_subformatter<flags<>, specifier<'F'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 10; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 10;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        int y = (_tm.tm_year + 1900) % 10000;
+        char* ptr = std::copy_n(detail::chrono::hmsdm_table.table[y / 100], 2,
+                                detail::iter_addr(iter));
+        ptr = std::copy_n(detail::chrono::hmsdm_table.table[y % 100], 2, ptr);
+        *(ptr++) = '-';
+        ptr = std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_mon + 1], 2,
+                          ptr);
+        *(ptr++) = '-';
+        std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_mday], 2, ptr);
+    }
+};
+
+template <> struct chrono_subformatter<flags<>, specifier<'g'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 2; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 2;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        int wby = detail::chrono::wby(_tm) % 100;
+        std::copy_n(detail::chrono::hmsdm_table.table[wby], 2, iter);
+    }
+};
+
+template <> struct chrono_subformatter<flags<>, specifier<'G'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 4; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 4;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        int wby = detail::chrono::wby(_tm) % 10000;
+        auto p =
+            std::copy_n(detail::chrono::hmsdm_table.table[wby / 100], 2, iter);
+        std::copy_n(detail::chrono::hmsdm_table.table[wby % 100], 2, p);
+    }
+};
+
+template <>
+struct chrono_subformatter<flags<>, specifier<'h'>>
+    : chrono_subformatter<flags<>, specifier<'b'>> {};
+
+template <> struct chrono_subformatter<flags<>, specifier<'H'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 2; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 2;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_hour], 2, iter);
+    }
+};
+
+template <> struct chrono_subformatter<flags<>, specifier<'I'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 2; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 2;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        int h = _tm.tm_hour - (_tm.tm_hour > 12 ? 12 : 0);
+        std::copy_n(detail::chrono::hmsdm_table.table[h ? h : 1], 2, iter);
+    }
+};
+
+template <> struct chrono_subformatter<flags<>, specifier<'j'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 2; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 2;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_yday + 1], 2,
+                    iter);
+    }
+};
+
+template <> struct chrono_subformatter<flags<>, specifier<'m'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 2; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 2;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_mon + 1], 2, iter);
+    }
+};
+
+template <> struct chrono_subformatter<flags<>, specifier<'M'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 2; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 2;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_min], 2, iter);
     }
 };
 
