@@ -43,12 +43,11 @@ int main(void) {
         chx::log::format_to(output.data(), "%:%c:C"_str, _tm);
     }
     end = std::chrono::high_resolution_clock::now();
-    std::cout << "chxlog: "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(end -
-                                                                       begin)
-                     .count()
-              << "ms\n"
-              << output << "\nnow sleep for 1s\n";
+    chx::log::printf(
+        "chxlog: %ums\n%s\nnow sleep for 1s\n"_str,
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - begin)
+            .count(),
+        output);
 
     sleep(1);
 
@@ -58,10 +57,9 @@ int main(void) {
         fmt::format_to(output.data(), FMT_COMPILE("{:%c}"), _tm);
     }
     end = std::chrono::high_resolution_clock::now();
-    std::cout << "fmt: "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(end -
-                                                                       begin)
-                     .count()
-              << "ms\n"
-              << output << "\n";
+    chx::log::printf(
+        "fmt: %ums\n%s\n"_str,
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - begin)
+            .count(),
+        output);
 }

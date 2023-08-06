@@ -75,7 +75,7 @@ struct hmsdm_table_t {
     }
     template <std::size_t... Is>
     constexpr void make_s(std::integer_sequence<std::size_t, Is...>) {
-        (to_string<Is>().copy_to(table[Is]), ...);
+        (make_space_pad<Is>().copy_to(stable[Is]), ...);
     }
 
     constexpr hmsdm_table_t() noexcept(true) {
@@ -199,8 +199,8 @@ template <> struct chrono_subformatter<flags<>, specifier<'c'>> {
             detail::chrono::wday_mon_table.table[_tm.tm_wday][_tm.tm_mon], 7,
             ptr);
         *(ptr++) = ' ';
-        ptr =
-            std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_mday], 2, ptr);
+        ptr = std::copy_n(detail::chrono::hmsdm_table.stable[_tm.tm_mday], 2,
+                          ptr);
         *(ptr++) = ' ';
         ptr =
             std::copy_n(detail::chrono::hmsdm_table.table[_tm.tm_hour], 2, ptr);

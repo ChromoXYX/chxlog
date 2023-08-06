@@ -53,6 +53,6 @@ Makefile
 
 **/configure~
 compile_commands.json
-/.cache
+**/.cache
 example/chxlog_example
 **/*.o

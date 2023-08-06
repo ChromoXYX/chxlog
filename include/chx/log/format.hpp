@@ -801,6 +801,16 @@ template <char... Cs, typename... Rs>
 constexpr std::size_t formatted_size(string<Cs...> str, Rs&&... rs) {
     return detail::core2<>::formatted_size(str, std::forward<Rs>(rs)...);
 }
+template <char... Cs, typename... Rs>
+std::size_t printf(string<Cs...> str, Rs&&... rs) {
+    const std::string& __formatted = format(str, std::forward<Rs>(rs)...);
+    return fwrite(__formatted.c_str(), 1, __formatted.size(), stdout);
+}
+template <char... Cs, typename... Rs>
+std::size_t fprintf(FILE* s, string<Cs...> str, Rs&&... rs) {
+    const std::string& __formatted = format(str, std::forward<Rs>(rs)...);
+    return fwrite(__formatted.c_str(), 1, __formatted.size(), s);
+}
 
 namespace literals {
 template <typename T, T... Cs>
