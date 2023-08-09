@@ -726,7 +726,7 @@ template <typename FormatterSpec = default_formatter_lookup> struct core2 {
                 char buffer[call_path_max_size<0>(sts)] = {};
                 std::size_t requested_size = call_path_size1<0>(sts, rts, nts);
                 call_path_format1<0>(buffer, sts, rts, nts);
-                return buffer;
+                return std::string(buffer, requested_size);
             } else {
                 std::size_t requested_size = call_path_size1<0>(sts, rts, nts);
                 std::string output;
