@@ -4,6 +4,7 @@
 #include "./detail/constexpr_string.hpp"
 #include "./detail/iterator_address.hpp"
 
+#include <tuple>
 #include <algorithm>
 #include <string>
 
