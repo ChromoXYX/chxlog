@@ -104,4 +104,9 @@ constexpr string<CsA..., CsB...> concat(string<CsA...>,
                                         string<CsB...>) noexcept(true) {
     return {};
 }
+template <char... CsA, char... CsB>
+constexpr string<CsA..., CsB...> operator+(string<CsA...>,
+                                           string<CsB...>) noexcept(true) {
+    return {};
+}
 }  // namespace chx::log
