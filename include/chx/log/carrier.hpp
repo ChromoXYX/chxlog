@@ -109,4 +109,17 @@ constexpr string<CsA..., CsB...> operator+(string<CsA...>,
                                            string<CsB...>) noexcept(true) {
     return {};
 }
+
+template <typename T, T N> constexpr auto from_number() {
+    if constexpr (N < 0) {
+        return string<'-'>() + from_number<T, -N>();
+    } else {
+        if constexpr (N < 10) {
+            return string<static_cast<char>(N) + '0'>();
+        } else {
+            return from_number<T, N / 10>() +
+                   string<static_cast<char>(N % 10) + '0'>();
+        }
+    }
+}
 }  // namespace chx::log
