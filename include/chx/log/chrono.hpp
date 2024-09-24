@@ -535,6 +535,23 @@ template <> struct chrono_subformatter<flags<>, specifier<'T'>> {
     }
 };
 
+template <> struct chrono_subformatter<flags<>, specifier<'Y'>> {
+    constexpr static std::size_t max_size() noexcept(true) { return 4; }
+    constexpr static std::size_t
+    calculate_size(const struct std::tm& t) noexcept(true) {
+        return 4;
+    }
+    template <typename RandomAccessIterator>
+    constexpr static void format(RandomAccessIterator iter,
+                                 const struct std::tm& _tm,
+                                 std::size_t) noexcept(true) {
+        const int y = std::max(0, _tm.tm_year + 1900) % 10000;
+        char buffer[4] = {};
+        std::to_chars(buffer, buffer + 4, y);
+        std::copy_n(buffer, 4, iter);
+    }
+};
+
 namespace detail {
 struct chrono_subformatter_lookup {
     template <typename Flags, typename Specifier>
@@ -586,6 +603,13 @@ struct formatter<
         no_tm_result r = {};
         std::time_t tt = Clock::to_time_t(tp);
         localtime_r(&tt, &r.t);
+        r.full_size = _h::calculate_size(r.t);
+        return std::move(r);
+    }
+    template <typename Clock, typename Duration>
+    no_tm_result calculate_size(const std::tm& t) noexcept(true) {
+        no_tm_result r = {};
+        r.t = t;
         r.full_size = _h::calculate_size(r.t);
         return std::move(r);
     }

@@ -281,8 +281,9 @@ struct flag_specifiers {
 struct formatter_placeholder {};
 template <typename Flags, typename Specifier>
 struct formatter : formatter_placeholder {};
+template <std::size_t N> struct argument_step {};
 
-template <> struct formatter<flags<>, specifier<'%'>> {
+template <> struct formatter<flags<>, specifier<'%'>> : argument_step<0> {
     struct calculated_size {
         static constexpr inline std::size_t full_size = 1;
     };
@@ -291,12 +292,27 @@ template <> struct formatter<flags<>, specifier<'%'>> {
     constexpr calculated_size calculate_size() noexcept(true) { return {}; }
     template <typename RandomAccessIterator>
     constexpr void format(RandomAccessIterator iter,
-                          std::size_t) noexcept(true) {
+                          const calculated_size&) noexcept(true) {
         *iter = '%';
     }
 };
 
 namespace detail {
+struct get_arg_step_impl1 {
+    template <std::size_t N> get_arg_step_impl1(const argument_step<N>&);
+};
+template <std::size_t N>
+constexpr std::integral_constant<std::size_t, N>
+get_arg_step_impl2(const argument_step<N>&);
+
+template <typename T> constexpr auto get_arg_step() {
+    if constexpr (std::is_constructible_v<get_arg_step_impl1, T>) {
+        return decltype(get_arg_step_impl2(std::declval<T>()))();
+    } else {
+        return std::integral_constant<std::size_t, 1>{};
+    }
+}
+
 struct has_max_size_impl {
     template <typename R> static std::true_type f(decltype(&R::max_size));
     template <typename R> static std::false_type f(...);
@@ -394,7 +410,7 @@ template <typename FormatterSpec = default_formatter_lookup> struct core2 {
             return Prev{};
         }
     }
-    template <char... Cs> struct norm_formatter {
+    template <char... Cs> struct norm_formatter : argument_step<0> {
         struct result_type {
             static constexpr inline std::size_t full_size = sizeof...(Cs);
         };
@@ -459,20 +475,23 @@ template <typename FormatterSpec = default_formatter_lookup> struct core2 {
     template <std::size_t Idx, std::size_t ArgPos, typename... Ts>
     static constexpr auto make_final_section(std::tuple<Ts...> tp) {
         if constexpr (Idx != sizeof...(Ts)) {
+            constexpr std::size_t arg_step =
+                get_arg_step<typename std::tuple_element_t<
+                    Idx, std::tuple<Ts...>>::formatter_type>();
             if constexpr (std::get<Idx>(tp).type == 0) {
                 return std::tuple_cat(
                     std::tuple<final_section<
                         0, ArgPos,
                         typename std::tuple_element_t<
                             Idx, std::tuple<Ts...>>::formatter_type>>{},
-                    make_final_section<Idx + 1, ArgPos + 1>(tp));
+                    make_final_section<Idx + 1, ArgPos + arg_step>(tp));
             } else {
                 return std::tuple_cat(
                     std::tuple<final_section<
                         1, ArgPos,
                         typename std::tuple_element_t<
                             Idx, std::tuple<Ts...>>::formatter_type>>{},
-                    make_final_section<Idx + 1, ArgPos>(tp));
+                    make_final_section<Idx + 1, ArgPos + arg_step>(tp));
             }
         } else {
             return std::tuple{};
